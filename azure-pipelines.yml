@@ -1,0 +1,48 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+# Initial Scripts
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
+
+# Build Step
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '7.x'  # Specify .NET SDK version
+  displayName: 'Install .NET SDK'
+
+- script: |
+    dotnet restore
+    dotnet build --configuration Release
+  displayName: 'Build the project'
+
+# Test Step
+- script: |
+    dotnet test --configuration Release --no-build --verbosity normal
+  displayName: 'Run Unit Tests'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/test-results.xml'
+    failTaskOnFailedTests: true
+  displayName: 'Publish Test Results'
+
+# Deploy Step
+- task: AzureWebApp@1
+  inputs:
+    azureSubscription: '<Your Azure Subscription>'
+    appType: 'webApp'
+    appName: '<Your Staging Web App Name>'
+    package: '$(System.DefaultWorkingDirectory)/**/*.zip'
+  displayName: 'Deploy to Staging'
