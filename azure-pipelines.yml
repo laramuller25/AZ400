@@ -1,17 +1,78 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - main
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'build'
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'test'
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'publish'
-    publishWebProjects: true
+
+pool:
+  name: 'Default'
+
+jobs:
+- job: Build
+  displayName: 'Build Job'
+  steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: sdk
+      version: '8.x'
+      installationPath: $(Agent.ToolsDirectory)/dotnet
+
+  - script: |
+      dotnet clean "C:\Users\lara\Documents\Project\Project.csproj"
+      dotnet restore "C:\Users\lara\Documents\Project\Project.csproj"
+      dotnet build "C:\Users\lara\Documents\Project\Project.csproj" --configuration Release
+      dotnet publish "C:\Users\lara\Documents\Project\Project.csproj" --configuration Release --output "C:\Users\lara\Documents\Project\bin\Release\net8.0\publish"
+    displayName: 'Build and Publish Project'
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: 'C:\Users\nicol\Documents\Project\bin\Release\net8.0\publish'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+      replaceExistingArchive: true
+    displayName: 'Archive Build Output'
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+      artifactName: 'drop'
+    displayName: 'Publish Artifacts'
+
+- job: Test
+  displayName: 'Test Job'
+  dependsOn: Build
+  pool:
+    name: 'Default'
+  steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: sdk
+      version: '8.x'
+      installationPath: $(Agent.ToolsDirectory)/dotnet
+
+  - script: |
+      dotnet test "C:\Users\lara\Documents\Project\Project.csproj" --configuration Release --logger trx
+    displayName: 'Run Tests'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFiles: '/*.trx'
+      mergeTestResults: true
+    displayName: 'Publish Test Results'
+
+- job: Deploy
+  displayName: 'Deploy Job'
+  dependsOn: Build
+  pool:
+    name: 'Default'
+  steps:
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifactName: 'drop'
+      downloadPath: '$(Pipeline.Workspace)/drop'
+    displayName: 'Download Pipeline Artifacts'
+
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'Azure-Prod-WebApp-Connection'  # Replace with your Azure service connection name
+      appName: 'MyUniqueWebApp456'  # Ensure this matches your Azure Web App name
+      package: '$(Pipeline.Workspace)/drop/*.zip'
+    displayName: 'Deploy to Azure Web App'
